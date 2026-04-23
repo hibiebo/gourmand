@@ -1,0 +1,1597 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Gourmand — 旅先レストラン比較</title>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&family=Noto+Serif+JP:wght@400;600&family=Oxanium:wght@200;300;400;500;600;700&display=swap" rel="stylesheet">
+
+<style>
+:root {
+  --void:     #030010;
+  --midnight: #070425;
+  --nebula:   #110835;
+  --surface:  rgba(28, 16, 78, 0.55);
+  --border:   rgba(140, 105, 255, 0.18);
+  --border-2: rgba(100, 160, 255, 0.12);
+  --border-hi:rgba(170, 130, 255, 0.35);
+  --glass-hi: rgba(255, 255, 255, 0.08);
+  --prim:     #8b5cf6;
+  --prim-2:   #6366f1;
+  --acc:      #a78bfa;
+  --acc-2:    #7ab4ff;
+  --acc-3:    #22d3ee;
+  --glow:     rgba(139, 92, 246, 0.45);
+  --glow-2:   rgba(99, 102, 241, 0.3);
+  --text:     #e8e5ff;
+  --muted:    #9b94c9;
+  --faint:    #6b6490;
+  --gold:     #fbbf24;
+  --danger:   #f87171;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+html, body { height: 100%; }
+body {
+  font-family: 'Noto Sans JP', sans-serif;
+  background: var(--void);
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  overscroll-behavior: none;
+  position: fixed; inset: 0;
+}
+
+/* cosmic bg */
+.bg-cosmos {
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background:
+    radial-gradient(ellipse 90% 65% at 15% 8%,  rgba(99,40,180,0.32) 0%, transparent 58%),
+    radial-gradient(ellipse 80% 55% at 85% 88%, rgba(30,70,200,0.26) 0%, transparent 55%),
+    radial-gradient(ellipse 55% 40% at 60% 32%, rgba(139,60,255,0.16) 0%, transparent 50%),
+    radial-gradient(ellipse 100% 70% at 50% 50%, rgba(10,4,42,0.4) 0%, transparent 70%);
+  animation: bgShift 18s ease-in-out infinite alternate;
+}
+@keyframes bgShift {
+  from { filter: hue-rotate(-6deg) brightness(0.95); transform: scale(1); }
+  to   { filter: hue-rotate(8deg)  brightness(1.05); transform: scale(1.04); }
+}
+.bg-grain {
+  position: fixed; inset: 0; z-index: 1; pointer-events: none;
+  opacity: 0.04; mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+}
+.bg-stars { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
+.bg-stars i {
+  position: absolute; display: block;
+  width: 2px; height: 2px; border-radius: 50%;
+  background: rgba(200,190,255,0.7);
+  box-shadow: 0 0 6px rgba(200,190,255,0.9);
+  animation: twinkle 4s ease-in-out infinite alternate;
+}
+@keyframes twinkle {
+  from { opacity: 0.2; transform: scale(0.8); }
+  to   { opacity: 0.85; transform: scale(1.2); }
+}
+
+/* header */
+header {
+  position: relative; z-index: 10;
+  padding: max(14px, env(safe-area-inset-top)) 18px 0;
+  display: flex; flex-direction: column; align-items: center; gap: 12px;
+}
+.logo { display: flex; align-items: baseline; gap: 10px; padding: 4px 2px; }
+.logo-mark {
+  width: 28px; height: 28px; position: relative;
+  display: flex; align-items: center; justify-content: center;
+}
+.logo-mark::before {
+  content: ''; position: absolute; inset: 0;
+  background: conic-gradient(from 180deg, var(--prim), var(--acc-2), var(--prim));
+  border-radius: 50%; filter: blur(6px); opacity: 0.7;
+  animation: spin 8s linear infinite;
+}
+.logo-mark::after {
+  content: '✦'; position: relative; z-index: 1;
+  font-family: 'Noto Serif JP', serif;
+  color: #fff; font-size: 18px;
+  text-shadow: 0 0 10px var(--acc), 0 0 20px var(--prim);
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.logo-text { display: flex; flex-direction: column; line-height: 1; }
+.logo-name {
+  font-family: 'Noto Serif JP', serif; font-weight: 600;
+  font-size: 1.15rem; letter-spacing: 0.18em;
+  background: linear-gradient(100deg, #fff 0%, var(--acc) 40%, var(--acc-2) 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-size: 200% auto; animation: shimmer 6s linear infinite;
+}
+@keyframes shimmer { to { background-position: 200% center; } }
+.logo-tag {
+  font-family: 'Oxanium', sans-serif; font-weight: 300;
+  font-size: 0.55rem; letter-spacing: 0.35em;
+  color: var(--faint); margin-top: 4px; text-transform: uppercase;
+}
+
+/* search */
+.search-wrap {
+  position: relative; width: 100%; max-width: 640px;
+  display: flex; gap: 8px;
+}
+.search-input-wrap { flex: 1; position: relative; }
+.search-icon {
+  position: absolute; left: 16px; top: 50%; transform: translateY(-50%);
+  color: var(--faint); font-size: 15px; pointer-events: none; transition: color .25s;
+}
+.search-input {
+  width: 100%;
+  background: linear-gradient(135deg, rgba(25,12,65,0.75), rgba(15,8,45,0.6));
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 13px 18px 13px 42px;
+  color: var(--text);
+  font-family: 'Noto Sans JP', sans-serif; font-size: 0.95rem;
+  outline: none;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.4), inset 0 1px 0 var(--glass-hi);
+  transition: border-color .3s, box-shadow .3s;
+}
+.search-input::placeholder { color: var(--faint); }
+.search-input:focus {
+  border-color: var(--border-hi);
+  box-shadow: 0 0 0 3px var(--glow-2), 0 4px 28px rgba(0,0,0,0.5), inset 0 1px 0 var(--glass-hi);
+}
+.search-input-wrap:focus-within .search-icon { color: var(--acc); }
+.search-btn {
+  position: relative; overflow: hidden;
+  background: linear-gradient(135deg, var(--prim) 0%, var(--prim-2) 100%);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 14px;
+  padding: 0 24px; color: #fff;
+  font-family: 'Oxanium', sans-serif; font-weight: 600;
+  font-size: 0.9rem; letter-spacing: 0.06em;
+  cursor: pointer; white-space: nowrap;
+  box-shadow: 0 0 24px var(--glow), 0 4px 14px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.2);
+  transition: transform .2s, box-shadow .2s, filter .2s;
+}
+.search-btn::before {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(135deg, transparent 40%, rgba(255,255,255,0.2) 50%, transparent 60%);
+  transform: translateX(-100%); transition: transform .6s;
+}
+.search-btn:hover { transform: translateY(-1px); filter: brightness(1.12); }
+.search-btn:hover::before { transform: translateX(100%); }
+.search-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+/* pills */
+.pills {
+  width: 100%; max-width: 640px;
+  display: flex; gap: 6px; overflow-x: auto;
+  padding: 2px 0 4px; scrollbar-width: none;
+}
+.pills::-webkit-scrollbar { display: none; }
+.pill {
+  flex-shrink: 0;
+  background: rgba(30,18,80,0.5);
+  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border-2);
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-family: 'Noto Sans JP', sans-serif; font-size: 0.75rem;
+  color: var(--muted); cursor: pointer; white-space: nowrap;
+  transition: border-color .2s, color .2s, background .2s, transform .15s;
+  display: flex; align-items: center; gap: 5px;
+}
+.pill:hover {
+  border-color: var(--border-hi); color: var(--text);
+  background: rgba(50,30,130,0.55); transform: translateY(-1px);
+}
+.pill .flag { font-size: 0.85rem; }
+
+/* status */
+.status-bar {
+  width: 100%; max-width: 640px;
+  font-family: 'Oxanium', sans-serif; font-size: 0.72rem;
+  letter-spacing: 0.06em; min-height: 16px; text-align: center;
+  color: var(--faint); padding-bottom: 6px;
+  transition: color .25s;
+}
+.status-bar.loading { color: var(--acc); }
+.status-bar.error   { color: var(--danger); }
+.status-bar.ok      { color: var(--acc-2); }
+.spinner {
+  display: inline-block; width: 11px; height: 11px;
+  border: 1.5px solid rgba(167,139,250,0.25);
+  border-top-color: var(--acc);
+  border-radius: 50%;
+  animation: spinSpin .7s linear infinite;
+  vertical-align: -1px; margin-right: 6px;
+}
+@keyframes spinSpin { to { transform: rotate(360deg); } }
+
+/* map */
+#map { flex: 1; position: relative; z-index: 2; min-height: 0; background: #020718; }
+/* light_all を反転して、水域(青) と 陸地(暗灰) のコントラストを最大化 */
+.leaflet-tile-pane {
+  filter: invert(0.93) hue-rotate(200deg) saturate(1.45) brightness(0.92) contrast(1.18);
+}
+.leaflet-container { background: #020718 !important; font-family: 'Noto Sans JP', sans-serif; }
+.leaflet-control-zoom { border: none !important; box-shadow: none !important; margin: 0 14px 14px 0 !important; }
+.leaflet-control-zoom a {
+  background: rgba(18,10,50,0.75) !important;
+  backdrop-filter: blur(18px) saturate(160%);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  border: 1px solid var(--border) !important;
+  color: var(--acc) !important;
+  font-family: 'Oxanium', sans-serif !important;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4) !important;
+}
+.leaflet-control-zoom a:first-child { border-radius: 12px 12px 0 0 !important; }
+.leaflet-control-zoom a:last-child  { border-radius: 0 0 12px 12px !important; margin-top: -1px !important; }
+.leaflet-control-zoom a:hover { background: rgba(45,25,110,0.85) !important; border-color: var(--border-hi) !important; }
+.leaflet-control-attribution { display: none !important; }
+
+/* markers */
+.marker-wrap { position: relative; width: 40px; height: 40px; cursor: pointer; }
+.marker-pin {
+  position: absolute; top: 0; left: 0;
+  width: 40px; height: 40px;
+  background: linear-gradient(135deg, var(--prim) 0%, var(--prim-2) 100%);
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  border: 2px solid rgba(255,255,255,0.3);
+  box-shadow: 0 0 18px var(--glow), 0 6px 14px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.3);
+  display: flex; align-items: center; justify-content: center;
+  transition: transform .25s cubic-bezier(.34,1.56,.64,1), box-shadow .25s, background .25s;
+}
+.marker-pin::before {
+  content: ''; position: absolute; inset: 4px;
+  border-radius: 50% 50% 50% 0;
+  border: 1px solid rgba(255,255,255,0.15);
+}
+.marker-inner { transform: rotate(45deg); font-size: 15px; line-height: 1; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.5)); }
+.marker-pulse {
+  position: absolute; top: 50%; left: 50%;
+  width: 40px; height: 40px; margin: -20px 0 0 -20px;
+  border-radius: 50%;
+  background: var(--prim); opacity: 0.35;
+  animation: pulse 2.4s ease-out infinite;
+  pointer-events: none;
+}
+@keyframes pulse {
+  0%   { transform: scale(0.5); opacity: 0.6; }
+  80%  { transform: scale(2.4); opacity: 0; }
+  100% { transform: scale(2.4); opacity: 0; }
+}
+.marker-wrap:hover .marker-pin { transform: rotate(-45deg) scale(1.1) translateY(-2px); }
+.marker-wrap.active .marker-pin {
+  background: linear-gradient(135deg, var(--gold) 0%, #ef4444 100%);
+  box-shadow: 0 0 32px rgba(251,191,36,0.6), 0 8px 20px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.4);
+  transform: rotate(-45deg) scale(1.15) translateY(-3px);
+}
+.marker-wrap.active .marker-pulse { background: var(--gold); animation-duration: 1.6s; }
+.marker-rank {
+  position: absolute; top: -4px; right: -4px;
+  width: 18px; height: 18px; border-radius: 50%;
+  background: rgba(10,5,30,0.9);
+  border: 1px solid var(--border-hi);
+  font-family: 'Oxanium', sans-serif; font-weight: 600; font-size: 10px;
+  color: var(--acc); z-index: 2;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+}
+
+/* empty state */
+.empty-state {
+  position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center; pointer-events: none;
+  z-index: 3; max-width: 320px;
+  animation: fadeUp 1s ease;
+}
+@keyframes fadeUp {
+  from { opacity: 0; transform: translate(-50%, -45%); }
+  to   { opacity: 1; transform: translate(-50%, -50%); }
+}
+.empty-icon { font-size: 3.4rem; margin-bottom: 16px; opacity: 0.35; filter: drop-shadow(0 0 18px var(--glow)); }
+.empty-title {
+  font-family: 'Noto Serif JP', serif; font-weight: 600;
+  font-size: 1rem; color: var(--acc); margin-bottom: 6px;
+  letter-spacing: 0.04em;
+}
+.empty-text { color: var(--muted); font-size: 0.82rem; line-height: 1.75; font-weight: 300; }
+
+/* chip strip */
+.chip-strip {
+  position: absolute; bottom: 0; left: 0; right: 0; z-index: 5;
+  padding: 10px 12px max(14px, env(safe-area-inset-bottom));
+  display: flex; gap: 8px; overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  pointer-events: none;
+}
+.chip-strip::-webkit-scrollbar { display: none; }
+.chip-strip.hidden { display: none; }
+.chip {
+  pointer-events: all; flex-shrink: 0; scroll-snap-align: start;
+  background: linear-gradient(135deg, rgba(25,12,65,0.78), rgba(15,8,45,0.65));
+  backdrop-filter: blur(22px) saturate(170%);
+  -webkit-backdrop-filter: blur(22px) saturate(170%);
+  border: 1px solid var(--border);
+  border-radius: 14px; padding: 9px 13px 10px;
+  display: flex; flex-direction: column; gap: 3px;
+  cursor: pointer; min-width: 152px; max-width: 185px;
+  box-shadow: 0 6px 22px rgba(0,0,0,0.45), inset 0 1px 0 var(--glass-hi);
+  transition: border-color .2s, box-shadow .25s, transform .2s;
+  position: relative; overflow: hidden;
+}
+.chip::before {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(135deg, rgba(139,92,246,0.08), transparent 60%);
+  pointer-events: none;
+}
+.chip:hover { border-color: var(--border-hi); transform: translateY(-3px); box-shadow: 0 10px 30px rgba(80,30,200,0.3), inset 0 1px 0 var(--glass-hi); }
+.chip.active { border-color: var(--gold); box-shadow: 0 0 22px rgba(251,191,36,0.4), inset 0 1px 0 var(--glass-hi); }
+.chip-rank {
+  position: absolute; top: 6px; right: 8px;
+  font-family: 'Oxanium', sans-serif; font-weight: 300;
+  font-size: 9px; color: var(--faint); letter-spacing: 0.1em;
+}
+.chip-name {
+  font-size: 0.82rem; font-weight: 500; color: var(--text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  padding-right: 20px;
+}
+.chip-meta { display: flex; align-items: center; gap: 8px; font-size: 0.7rem; flex-wrap: wrap; }
+.chip-cuisine { color: var(--acc); font-family: 'Oxanium', sans-serif; letter-spacing: 0.03em; }
+.chip-price {
+  font-family: 'Oxanium', sans-serif;
+  color: var(--acc-2); font-weight: 500;
+  letter-spacing: 0.02em;
+}
+.chip-price.good-value { color: #34d399; }
+
+/* sort tabs */
+.sort-tabs {
+  position: absolute; left: 50%; transform: translateX(-50%);
+  bottom: 82px; z-index: 6;
+  display: flex; gap: 3px;
+  background: rgba(18,10,50,0.78);
+  backdrop-filter: blur(22px) saturate(170%);
+  -webkit-backdrop-filter: blur(22px) saturate(170%);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 3px;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.45), inset 0 1px 0 var(--glass-hi);
+  transition: opacity .3s, transform .3s;
+}
+.sort-tabs.hidden { opacity: 0; transform: translateX(-50%) translateY(10px); pointer-events: none; }
+.sort-tab {
+  background: transparent; border: none;
+  color: var(--muted);
+  font-family: 'Oxanium', sans-serif; font-weight: 500;
+  font-size: 0.72rem; letter-spacing: 0.06em;
+  padding: 6px 14px; border-radius: 999px;
+  cursor: pointer;
+  transition: color .2s, background .2s;
+  display: flex; align-items: center; gap: 4px;
+}
+.sort-tab:hover { color: var(--text); }
+.sort-tab.active {
+  background: linear-gradient(135deg, var(--prim), var(--prim-2));
+  color: #fff;
+  box-shadow: 0 2px 10px var(--glow);
+}
+.sort-tab .sort-ic { font-size: 0.9em; }
+
+/* panel */
+.panel-overlay {
+  position: fixed; inset: 0; z-index: 100;
+  pointer-events: none;
+  display: flex; align-items: flex-end; justify-content: center;
+}
+@media (min-width: 720px) {
+  .panel-overlay { align-items: center; justify-content: flex-end; padding: 20px; }
+}
+.panel {
+  pointer-events: all; position: relative;
+  width: 100%; max-width: 440px;
+  max-height: 78dvh;
+  background: linear-gradient(135deg, rgba(30,16,85,0.75), rgba(18,8,55,0.78));
+  backdrop-filter: blur(36px) saturate(190%);
+  -webkit-backdrop-filter: blur(36px) saturate(190%);
+  border: 1px solid var(--border); border-bottom: none;
+  border-radius: 30px 30px 0 0;
+  overflow: hidden;
+  display: flex; flex-direction: column;
+  box-shadow: 0 -10px 60px rgba(80,30,200,0.35), inset 0 1px 0 var(--glass-hi);
+  transform: translateY(110%);
+  transition: transform .45s cubic-bezier(.16, 1, .3, 1);
+}
+@media (min-width: 720px) {
+  .panel {
+    border-bottom: 1px solid var(--border);
+    border-radius: 24px;
+    max-height: 82dvh;
+    transform: translateX(130%);
+  }
+}
+.panel.open { transform: translateY(0); }
+@media (min-width: 720px) { .panel.open { transform: translateX(0); } }
+
+.panel-handle {
+  width: 44px; height: 4px; margin: 12px auto 0;
+  background: rgba(255,255,255,0.18); border-radius: 3px;
+}
+@media (min-width: 720px) { .panel-handle { display: none; } }
+
+.panel-close {
+  position: absolute; top: 14px; right: 16px; z-index: 2;
+  background: rgba(255,255,255,0.07);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--border);
+  border-radius: 50%; width: 30px; height: 30px;
+  color: var(--muted); font-size: 14px;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: background .2s, color .2s, transform .2s;
+}
+.panel-close:hover { background: rgba(255,255,255,0.14); color: var(--text); transform: rotate(90deg); }
+
+.panel-inner {
+  overflow-y: auto; padding: 20px 22px max(26px, env(safe-area-inset-bottom));
+  flex: 1; min-height: 0;
+}
+.panel-inner::-webkit-scrollbar { width: 4px; }
+.panel-inner::-webkit-scrollbar-thumb { background: rgba(160,120,255,0.28); border-radius: 2px; }
+
+.panel-rank {
+  font-family: 'Oxanium', sans-serif; font-weight: 300;
+  font-size: 0.65rem; letter-spacing: 0.3em;
+  color: var(--faint); text-transform: uppercase; margin-bottom: 6px;
+}
+.panel-name {
+  font-family: 'Noto Serif JP', serif; font-weight: 600;
+  font-size: 1.3rem; line-height: 1.35;
+  margin-bottom: 10px; padding-right: 36px;
+  letter-spacing: 0.02em;
+  text-decoration: none; display: inline-block;
+  background: linear-gradient(100deg, var(--text) 0%, var(--text) 70%, var(--acc-2) 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  border-bottom: 1px dashed transparent; padding-bottom: 2px;
+  transition: border-color .2s, filter .2s;
+}
+.panel-name:hover { filter: brightness(1.2); border-bottom-color: var(--acc); }
+.panel-name-arrow {
+  font-family: 'Oxanium', sans-serif; font-size: 0.7em;
+  color: var(--acc); opacity: 0.7; margin-left: 4px;
+  -webkit-text-fill-color: var(--acc);
+}
+
+.panel-tags {
+  display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px;
+}
+.panel-tags span {
+  font-family: 'Oxanium', sans-serif; font-size: 0.7rem;
+  letter-spacing: 0.04em; color: var(--muted);
+  background: rgba(139,92,246,0.12);
+  border: 1px solid rgba(139,92,246,0.22);
+  border-radius: 999px; padding: 3px 10px;
+}
+
+/* rating */
+.rating-block {
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 16px; margin: 4px 0 18px;
+  background: linear-gradient(135deg, rgba(251,191,36,0.08), rgba(139,92,246,0.06));
+  border: 1px solid rgba(251,191,36,0.18);
+  border-radius: 14px;
+  position: relative; overflow: hidden;
+}
+.rating-block::before {
+  content: ''; position: absolute; top: 0; left: 0; width: 3px; height: 100%;
+  background: linear-gradient(to bottom, var(--gold), #f59e0b);
+}
+.rating-main { display: flex; align-items: center; gap: 8px; }
+.stars { display: flex; gap: 2px; }
+.star { font-size: 17px; color: rgba(255,255,255,0.14); position: relative; line-height: 1; }
+.star.on   { color: var(--gold); filter: drop-shadow(0 0 5px rgba(251,191,36,0.55)); }
+.star.half::before {
+  content: '★'; position: absolute; left: 0; top: 0;
+  color: var(--gold); filter: drop-shadow(0 0 5px rgba(251,191,36,0.55));
+  clip-path: inset(0 50% 0 0);
+}
+.rating-num {
+  font-family: 'Oxanium', sans-serif; font-weight: 600;
+  font-size: 1.25rem; color: var(--gold);
+  line-height: 1;
+}
+.rating-label {
+  font-family: 'Oxanium', sans-serif; font-size: 0.6rem;
+  letter-spacing: 0.12em; color: var(--faint);
+  text-transform: uppercase; line-height: 1.4;
+  margin-left: auto; text-align: right;
+}
+
+/* summary */
+.summary-text {
+  font-size: 0.85rem; line-height: 1.75; color: var(--text);
+  margin-bottom: 12px; font-weight: 300;
+  padding: 12px 14px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--border-2);
+  border-radius: 12px;
+  position: relative;
+}
+.summary-text::before {
+  content: '"'; position: absolute; top: 2px; left: 10px;
+  font-family: 'Noto Serif JP', serif; font-size: 2rem;
+  color: var(--acc); opacity: 0.3; line-height: 1;
+}
+.summary-text { padding-left: 26px; }
+
+/* highlights */
+.highlights {
+  display: flex; flex-wrap: wrap; gap: 6px;
+  margin-bottom: 6px;
+}
+.hl-item {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 0.75rem; color: var(--text);
+  background: rgba(99,102,241,0.1);
+  border: 1px solid rgba(122,180,255,0.18);
+  border-radius: 10px;
+  padding: 5px 9px;
+  font-weight: 400;
+}
+.hl-item span.hl-ic { font-size: 0.95em; }
+
+/* chip rating */
+.chip-rating { color: var(--gold); font-family: 'Oxanium', sans-serif; font-weight: 500; }
+.panel-info { margin: 8px 0 14px; }
+.info-row {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 7px 0; font-size: 0.82rem;
+  border-bottom: 1px solid var(--border-2);
+  line-height: 1.5;
+}
+.info-row:last-child { border-bottom: none; }
+.info-key { flex-shrink: 0; width: 20px; color: var(--acc); font-size: 0.9em; }
+.info-val { color: var(--text); word-break: break-word; }
+.info-val a { color: var(--acc-2); text-decoration: none; border-bottom: 1px dashed rgba(122,180,255,0.4); }
+.info-val a:hover { border-bottom-color: var(--acc-2); }
+
+.section-title {
+  font-family: 'Oxanium', sans-serif; font-size: 0.7rem;
+  letter-spacing: 0.15em; text-transform: uppercase;
+  color: var(--acc); margin: 20px 0 10px;
+  display: flex; align-items: center; gap: 10px;
+}
+.section-title::after {
+  content: ''; flex: 1; height: 1px;
+  background: linear-gradient(to right, rgba(167,139,250,0.3), transparent);
+}
+
+/* map service buttons */
+.map-links { display: flex; flex-direction: column; gap: 8px; }
+.map-link {
+  display: flex; align-items: center; gap: 12px;
+  background: rgba(255,255,255,0.035);
+  border: 1px solid var(--border-2);
+  border-radius: 14px; padding: 11px 14px;
+  font-size: 0.85rem; color: var(--text);
+  text-decoration: none;
+  transition: border-color .2s, background .2s, transform .15s;
+  position: relative; overflow: hidden;
+}
+.map-link::before {
+  content: ''; position: absolute; top: 0; left: 0; width: 3px; height: 100%;
+  background: var(--svc-color, var(--prim)); opacity: 0.6;
+}
+.map-link:hover { border-color: var(--border-hi); background: rgba(255,255,255,0.06); transform: translateX(2px); }
+.map-link-icon {
+  width: 32px; height: 32px; border-radius: 8px;
+  background: var(--svc-bg, linear-gradient(135deg, var(--prim), var(--prim-2)));
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 13px; color: #fff;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  flex-shrink: 0;
+}
+.map-link-body { flex: 1; min-width: 0; }
+.map-link-name {
+  font-family: 'Oxanium', sans-serif; font-weight: 600;
+  font-size: 0.82rem; color: var(--text); margin-bottom: 1px;
+  letter-spacing: 0.04em;
+}
+.map-link-desc { font-size: 0.72rem; color: var(--muted); font-weight: 300; }
+.map-link-arrow { color: var(--acc); font-size: 14px; opacity: 0.7; transition: transform .15s, opacity .15s; }
+.map-link:hover .map-link-arrow { opacity: 1; transform: translateX(2px); }
+.map-link.primary { border-color: var(--border-hi); background: rgba(139,92,246,0.1); }
+.map-link.primary::before { background: var(--gold); opacity: 1; }
+
+.svc-google { --svc-color: #ea4335; --svc-bg: linear-gradient(135deg, #4285f4, #ea4335); }
+.svc-yandex { --svc-color: #ff0000; --svc-bg: linear-gradient(135deg, #ff3333, #c00); }
+.svc-amap   { --svc-color: #00aeec; --svc-bg: linear-gradient(135deg, #00aeec, #0077b6); }
+.svc-baidu  { --svc-color: #2319dc; --svc-bg: linear-gradient(135deg, #4a40e8, #2319dc); }
+.svc-naver  { --svc-color: #03c75a; --svc-bg: linear-gradient(135deg, #03c75a, #00a04a); }
+.svc-osm    { --svc-color: #7ebc6f; --svc-bg: linear-gradient(135deg, #7ebc6f, #4a8a3e); }
+
+.note-card {
+  margin-top: 14px; padding: 12px 14px;
+  background: rgba(100,160,255,0.06);
+  border: 1px solid var(--border-2);
+  border-radius: 12px;
+  font-size: 0.76rem; color: var(--muted);
+  line-height: 1.65; font-weight: 300;
+}
+.note-card strong { color: var(--acc-2); font-weight: 500; }
+
+/* city-info button */
+.city-info-btn {
+  position: absolute; top: 14px; right: 14px; z-index: 10;
+  background: rgba(18,10,50,0.75);
+  backdrop-filter: blur(18px) saturate(160%);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  border: 1px solid var(--border);
+  color: var(--acc);
+  padding: 8px 14px; border-radius: 12px;
+  font-family: 'Oxanium', sans-serif; font-size: 0.72rem;
+  cursor: pointer; letter-spacing: 0.06em;
+  display: flex; align-items: center; gap: 6px;
+  max-width: 60%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.4);
+  transition: border-color .2s, background .2s;
+}
+.city-info-btn:hover { border-color: var(--border-hi); background: rgba(45,25,110,0.85); }
+.city-info-btn .flag { font-size: 1rem; }
+.city-info-btn.hidden { display: none; }
+
+@media (max-width: 480px) {
+  .logo-name { font-size: 1rem; letter-spacing: 0.14em; }
+  .logo-tag  { font-size: 0.48rem; }
+  .logo-mark { width: 24px; height: 24px; }
+  .logo-mark::after { font-size: 15px; }
+  .search-input { font-size: 0.9rem; padding: 11px 16px 11px 38px; }
+  .search-btn { padding: 0 18px; font-size: 0.82rem; }
+  .search-icon { left: 14px; font-size: 13px; }
+  header { padding-top: max(10px, env(safe-area-inset-top)); gap: 10px; }
+  .panel-name { font-size: 1.15rem; }
+}
+</style>
+</head>
+<body>
+
+<div class="bg-cosmos"></div>
+<div class="bg-stars" id="stars"></div>
+<div class="bg-grain"></div>
+
+<header>
+  <div class="logo">
+    <div class="logo-mark"></div>
+    <div class="logo-text">
+      <span class="logo-name">Gourmand</span>
+      <span class="logo-tag">Traveler's Table</span>
+    </div>
+  </div>
+
+  <div class="search-wrap">
+    <div class="search-input-wrap">
+      <span class="search-icon">⌕</span>
+      <input class="search-input" id="cityInput" type="text"
+             placeholder="世界中どの都市でも OK（例：モスクワ、成都、釜山…）" autocomplete="off"/>
+    </div>
+    <button class="search-btn" id="searchBtn" onclick="searchCity()">検索</button>
+  </div>
+
+  <div class="pills" id="pills"></div>
+  <div class="status-bar" id="statusBar">都市を選んで、その土地の味を地図で巡る</div>
+</header>
+
+<div id="map">
+  <button class="city-info-btn hidden" id="cityInfoBtn"></button>
+  <div class="sort-tabs hidden" id="sortTabs">
+    <button class="sort-tab active" data-sort="quality" onclick="applySort('quality')">
+      <span class="sort-ic">⭐</span>おすすめ順
+    </button>
+    <button class="sort-tab" data-sort="value" onclick="applySort('value')">
+      <span class="sort-ic">💎</span>コスパ順
+    </button>
+  </div>
+  <div class="empty-state" id="emptyState">
+    <div class="empty-icon">✦</div>
+    <div class="empty-title">旅先の味を探しましょう</div>
+    <div class="empty-text">
+      都市名を入力するか、上のピルから選んでください。<br>
+      OpenStreetMapの情報を元に、その土地の料理のレストランを<br>
+      自動でピックアップします。
+    </div>
+  </div>
+</div>
+
+<div class="chip-strip hidden" id="chipStrip"></div>
+
+<div class="panel-overlay">
+  <div class="panel" id="panel">
+    <span class="panel-handle"></span>
+    <button class="panel-close" onclick="closePanel()">✕</button>
+    <div class="panel-inner" id="panelInner"></div>
+  </div>
+</div>
+
+<script>
+/* ═════════ CONFIG ═════════ */
+
+const COUNTRY_CUISINE = {
+  jp: { tags: 'japanese|sushi|ramen|yakiniku|izakaya|tempura|okonomiyaki|udon|soba|kaiseki|yakitori', label: '日本料理' },
+  cn: { tags: 'chinese|sichuan|cantonese|dim_sum|shanghainese|peking|beijing|hunan|hot_pot|dumpling|noodle|wok|yunnan|xinjiang', label: '中華料理' },
+  tw: { tags: 'taiwanese|chinese|dim_sum|noodle', label: '台湾料理' },
+  hk: { tags: 'cantonese|chinese|dim_sum|hong_kong', label: '広東料理' },
+  kr: { tags: 'korean|bbq', label: '韓国料理' },
+  mn: { tags: 'mongolian|asian', label: 'モンゴル料理' },
+  th: { tags: 'thai', label: 'タイ料理' },
+  vn: { tags: 'vietnamese', label: 'ベトナム料理' },
+  id: { tags: 'indonesian|balinese', label: 'インドネシア料理' },
+  my: { tags: 'malaysian', label: 'マレーシア料理' },
+  sg: { tags: 'singaporean|asian|malaysian|chinese', label: 'シンガポール料理' },
+  ph: { tags: 'filipino', label: 'フィリピン料理' },
+  kh: { tags: 'cambodian|khmer', label: 'カンボジア料理' },
+  la: { tags: 'laotian|lao', label: 'ラオス料理' },
+  mm: { tags: 'burmese|myanmar', label: 'ミャンマー料理' },
+  in: { tags: 'indian|curry|tandoori|biryani|south_indian|north_indian', label: 'インド料理' },
+  pk: { tags: 'pakistani|indian|curry', label: 'パキスタン料理' },
+  bd: { tags: 'bangladeshi|indian', label: 'バングラデシュ料理' },
+  lk: { tags: 'sri_lankan', label: 'スリランカ料理' },
+  np: { tags: 'nepalese|nepali|tibetan', label: 'ネパール料理' },
+  tr: { tags: 'turkish|kebab|ottoman', label: 'トルコ料理' },
+  lb: { tags: 'lebanese|middle_eastern', label: 'レバノン料理' },
+  il: { tags: 'israeli|middle_eastern|falafel|hummus', label: 'イスラエル料理' },
+  ir: { tags: 'persian|iranian', label: 'イラン料理' },
+  ae: { tags: 'arabic|middle_eastern|emirati', label: 'UAE料理' },
+  sa: { tags: 'arabic|middle_eastern|saudi', label: 'サウジ料理' },
+  jo: { tags: 'jordanian|middle_eastern|arabic', label: 'ヨルダン料理' },
+  sy: { tags: 'syrian|middle_eastern', label: 'シリア料理' },
+  fr: { tags: 'french|bistro|crepe|provencal', label: 'フランス料理' },
+  it: { tags: 'italian|pizza|pasta|sicilian|tuscan|roman', label: 'イタリア料理' },
+  es: { tags: 'spanish|tapas|paella|basque|catalan', label: 'スペイン料理' },
+  pt: { tags: 'portuguese', label: 'ポルトガル料理' },
+  de: { tags: 'german|bavarian|schnitzel|sausage', label: 'ドイツ料理' },
+  at: { tags: 'austrian|german|schnitzel', label: 'オーストリア料理' },
+  ch: { tags: 'swiss|fondue|raclette', label: 'スイス料理' },
+  nl: { tags: 'dutch', label: 'オランダ料理' },
+  be: { tags: 'belgian|frites|waffle', label: 'ベルギー料理' },
+  gb: { tags: 'british|english|fish_and_chips|pub|sunday_roast', label: 'イギリス料理' },
+  ie: { tags: 'irish|pub', label: 'アイルランド料理' },
+  se: { tags: 'swedish|nordic|scandinavian', label: 'スウェーデン料理' },
+  no: { tags: 'norwegian|nordic|scandinavian', label: 'ノルウェー料理' },
+  dk: { tags: 'danish|nordic|scandinavian', label: 'デンマーク料理' },
+  fi: { tags: 'finnish|nordic', label: 'フィンランド料理' },
+  is: { tags: 'icelandic|nordic', label: 'アイスランド料理' },
+  gr: { tags: 'greek|mediterranean', label: 'ギリシャ料理' },
+  cy: { tags: 'cypriot|greek|mediterranean', label: 'キプロス料理' },
+  mt: { tags: 'maltese|mediterranean', label: 'マルタ料理' },
+  al: { tags: 'albanian|mediterranean', label: 'アルバニア料理' },
+  pl: { tags: 'polish|pierogi', label: 'ポーランド料理' },
+  cz: { tags: 'czech|bohemian', label: 'チェコ料理' },
+  sk: { tags: 'slovak', label: 'スロバキア料理' },
+  hu: { tags: 'hungarian|goulash', label: 'ハンガリー料理' },
+  ro: { tags: 'romanian', label: 'ルーマニア料理' },
+  bg: { tags: 'bulgarian', label: 'ブルガリア料理' },
+  hr: { tags: 'croatian|dalmatian', label: 'クロアチア料理' },
+  si: { tags: 'slovenian', label: 'スロベニア料理' },
+  rs: { tags: 'serbian|balkan', label: 'セルビア料理' },
+  ba: { tags: 'bosnian|balkan', label: 'ボスニア料理' },
+  mk: { tags: 'macedonian|balkan', label: '北マケドニア料理' },
+  me: { tags: 'montenegrin|balkan', label: 'モンテネグロ料理' },
+  ru: { tags: 'russian|pelmeni|borsch', label: 'ロシア料理' },
+  ua: { tags: 'ukrainian|russian|borsch|varenyky', label: 'ウクライナ料理' },
+  by: { tags: 'belarusian|russian', label: 'ベラルーシ料理' },
+  md: { tags: 'moldovan|romanian|russian', label: 'モルドバ料理' },
+  lt: { tags: 'lithuanian|baltic', label: 'リトアニア料理' },
+  lv: { tags: 'latvian|baltic', label: 'ラトビア料理' },
+  ee: { tags: 'estonian|baltic', label: 'エストニア料理' },
+  ge: { tags: 'georgian|khinkali|khachapuri', label: 'ジョージア料理' },
+  am: { tags: 'armenian', label: 'アルメニア料理' },
+  az: { tags: 'azerbaijani|caucasian', label: 'アゼルバイジャン料理' },
+  kz: { tags: 'kazakh|central_asian|uzbek|russian', label: 'カザフ料理' },
+  uz: { tags: 'uzbek|central_asian|plov', label: 'ウズベク料理' },
+  kg: { tags: 'kyrgyz|central_asian|uzbek', label: 'キルギス料理' },
+  tj: { tags: 'tajik|central_asian', label: 'タジク料理' },
+  tm: { tags: 'turkmen|central_asian', label: 'トルクメン料理' },
+  us: { tags: 'american|burger|barbecue|steak|southern|cajun|soul_food', label: 'アメリカ料理' },
+  ca: { tags: 'canadian|poutine|american', label: 'カナダ料理' },
+  mx: { tags: 'mexican|taco|burrito|regional_mexican', label: 'メキシコ料理' },
+  br: { tags: 'brazilian|churrasco', label: 'ブラジル料理' },
+  ar: { tags: 'argentinian|asado|parrilla|steak', label: 'アルゼンチン料理' },
+  pe: { tags: 'peruvian|ceviche|nikkei', label: 'ペルー料理' },
+  cl: { tags: 'chilean', label: 'チリ料理' },
+  co: { tags: 'colombian', label: 'コロンビア料理' },
+  ve: { tags: 'venezuelan|arepa', label: 'ベネズエラ料理' },
+  cu: { tags: 'cuban|caribbean', label: 'キューバ料理' },
+  ma: { tags: 'moroccan|tagine|couscous|north_african', label: 'モロッコ料理' },
+  eg: { tags: 'egyptian|middle_eastern', label: 'エジプト料理' },
+  tn: { tags: 'tunisian|north_african', label: 'チュニジア料理' },
+  dz: { tags: 'algerian|north_african', label: 'アルジェリア料理' },
+  et: { tags: 'ethiopian|eritrean|injera', label: 'エチオピア料理' },
+  ke: { tags: 'kenyan|african', label: 'ケニア料理' },
+  ng: { tags: 'nigerian|african|west_african', label: 'ナイジェリア料理' },
+  za: { tags: 'south_african|african|braai', label: '南アフリカ料理' },
+  gh: { tags: 'ghanaian|african|west_african', label: 'ガーナ料理' },
+  au: { tags: 'australian|modern_australian', label: 'オーストラリア料理' },
+  nz: { tags: 'new_zealand|pacific', label: 'ニュージーランド料理' },
+};
+
+function mapServicesFor(cc) {
+  cc = (cc || '').toLowerCase();
+  const ussr = ['ru', 'by', 'kz', 'kg', 'tj', 'tm', 'uz', 'az', 'am', 'md', 'ge'];
+  if (ussr.includes(cc)) return ['yandex', 'google', 'osm'];
+  if (cc === 'cn') return ['amap', 'baidu', 'google', 'osm'];
+  if (cc === 'kr') return ['naver', 'google', 'osm'];
+  return ['google', 'osm'];
+}
+
+const SUGGEST_CITIES = [
+  { flag: '🇫🇷', city: 'パリ' },
+  { flag: '🇮🇹', city: 'ローマ' },
+  { flag: '🇪🇸', city: 'バルセロナ' },
+  { flag: '🇷🇺', city: 'モスクワ' },
+  { flag: '🇨🇳', city: '成都' },
+  { flag: '🇰🇷', city: '釜山' },
+  { flag: '🇹🇭', city: 'チェンマイ' },
+  { flag: '🇻🇳', city: 'ホーチミン' },
+  { flag: '🇹🇷', city: 'イスタンブール' },
+  { flag: '🇲🇽', city: 'メキシコシティ' },
+  { flag: '🇬🇪', city: 'トビリシ' },
+  { flag: '🇲🇦', city: 'マラケシュ' },
+];
+
+const SERVICE_INFO = {
+  google: { name: 'Google Maps',    desc: 'レビュー・写真・営業時間',      className: 'svc-google', short: 'G' },
+  yandex: { name: 'Yandex Карты',   desc: 'ロシア語圏の詳細レビュー',       className: 'svc-yandex', short: 'Я' },
+  amap:   { name: '高德地图',        desc: '中国ユーザーのレビュー',         className: 'svc-amap',   short: '高' },
+  baidu:  { name: '百度地图',        desc: '中国全土の口コミ',              className: 'svc-baidu',  short: '百' },
+  naver:  { name: 'NAVER 지도',     desc: '韓国語の詳細レビュー',           className: 'svc-naver',  short: 'N' },
+  osm:    { name: 'OpenStreetMap', desc: '元データのソース',               className: 'svc-osm',    short: 'O' },
+};
+
+/* ═════════ MAP INIT ═════════ */
+const map = L.map('map', { zoomControl: false, minZoom: 2 }).setView([30, 20], 3);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { maxZoom: 19, subdomains: 'abcd' }).addTo(map);
+L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+let markers = [], chips = [], activeIdx = null, currentCity = null;
+const state = { list: [], city: null, cuisineInfo: null, sort: 'quality' };
+
+function getSortedList() {
+  const copy = [...state.list];
+  if (state.sort === 'value') {
+    return copy.sort((a, b) => b._value - a._value);
+  }
+  return copy.sort((a, b) => b._score - a._score);
+}
+
+function applySort(sort) {
+  if (!state.list.length) return;
+  state.sort = sort;
+  document.querySelectorAll('.sort-tab').forEach(b => b.classList.toggle('active', b.dataset.sort === sort));
+  closePanel();
+  renderRestaurants(getSortedList(), state.city, state.cuisineInfo);
+}
+
+map.on('click',    () => closePanel());
+map.on('dragstart',() => closePanel());
+
+/* ═════════ DECORATION ═════════ */
+(function makeStars() {
+  const host = document.getElementById('stars');
+  for (let i = 0; i < 60; i++) {
+    const s = document.createElement('i');
+    s.style.top  = (Math.random() * 100) + '%';
+    s.style.left = (Math.random() * 100) + '%';
+    s.style.opacity = (0.15 + Math.random() * 0.5);
+    s.style.animationDuration = (3 + Math.random() * 4) + 's';
+    s.style.animationDelay = (Math.random() * 4) + 's';
+    s.style.transform = `scale(${0.5 + Math.random() * 1.2})`;
+    host.appendChild(s);
+  }
+})();
+
+(function makePills() {
+  const host = document.getElementById('pills');
+  SUGGEST_CITIES.forEach(c => {
+    const b = document.createElement('button');
+    b.className = 'pill';
+    b.innerHTML = `<span class="flag">${c.flag}</span><span>${c.city}</span>`;
+    b.onclick = () => { document.getElementById('cityInput').value = c.city; searchCity(); };
+    host.appendChild(b);
+  });
+})();
+
+/* ═════════ HELPERS ═════════ */
+function setStatus(type, html) {
+  const el = document.getElementById('statusBar');
+  el.className = 'status-bar' + (type ? ' ' + type : '');
+  el.innerHTML = html;
+}
+function escapeHtml(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function flagEmoji(cc) {
+  if (!cc || cc.length !== 2) return '🏳️';
+  const base = 127397;
+  return String.fromCodePoint(...cc.toUpperCase().split('').map(c => c.charCodeAt(0) + base));
+}
+function formatAddress(tags) {
+  if (!tags) return '';
+  const parts = [
+    tags['addr:housenumber'],
+    tags['addr:street'],
+    tags['addr:suburb'] || tags['addr:district'] || tags['addr:neighbourhood'],
+    tags['addr:city'],
+  ].filter(Boolean);
+  return parts.join(' ');
+}
+function cleanUrl(u) {
+  if (!u) return '';
+  if (!/^https?:\/\//.test(u)) u = 'https://' + u;
+  return u;
+}
+
+/* ═════════ JSONP (CORS迂回) ═════════ */
+function jsonp(url, callbackParam, timeout) {
+  callbackParam = callbackParam || 'json_callback';
+  timeout = timeout || 15000;
+  return new Promise((resolve, reject) => {
+    const name = 'gm_cb_' + Date.now() + '_' + Math.floor(Math.random() * 1e6);
+    const script = document.createElement('script');
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true; cleanup(); reject(new Error('接続タイムアウト'));
+    }, timeout);
+    function cleanup() {
+      try { delete window[name]; } catch (e) { window[name] = undefined; }
+      if (script.parentNode) script.parentNode.removeChild(script);
+      clearTimeout(timer);
+    }
+    window[name] = (data) => {
+      if (settled) return;
+      settled = true; cleanup(); resolve(data);
+    };
+    script.onerror = () => {
+      if (settled) return;
+      settled = true; cleanup(); reject(new Error('スクリプト読み込みエラー'));
+    };
+    const sep = url.includes('?') ? '&' : '?';
+    script.src = url + sep + callbackParam + '=' + name;
+    document.head.appendChild(script);
+  });
+}
+
+/* ═════════ OVERPASS MIRRORS & CORS PROXIES ═════════ */
+const OVERPASS_MIRRORS = [
+  'https://overpass-api.de/api/interpreter',
+  'https://overpass.kumi.systems/api/interpreter',
+  'https://z.overpass-api.de/api/interpreter',
+];
+const CORS_PROXIES = [
+  url => `https://corsproxy.io/?url=${encodeURIComponent(url)}`,
+  url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+];
+
+async function fetchOverpassData(query, onProgress) {
+  const errors = [];
+  // 1) 直接リクエスト（各ミラー）
+  for (let i = 0; i < OVERPASS_MIRRORS.length; i++) {
+    const mirror = OVERPASS_MIRRORS[i];
+    onProgress && onProgress(`ミラー${i + 1}/${OVERPASS_MIRRORS.length}に接続中...`);
+    try {
+      const r = await fetch(mirror + '?data=' + encodeURIComponent(query));
+      if (!r.ok) { errors.push(`${mirror}: HTTP${r.status}`); continue; }
+      return await r.json();
+    } catch (e) {
+      errors.push(`${mirror}: ${e.message}`);
+    }
+  }
+  // 2) CORSプロキシ経由
+  for (let i = 0; i < CORS_PROXIES.length; i++) {
+    const proxy = CORS_PROXIES[i];
+    onProgress && onProgress(`代替経路${i + 1}/${CORS_PROXIES.length}を試行中...`);
+    try {
+      const url = proxy(OVERPASS_MIRRORS[0] + '?data=' + encodeURIComponent(query));
+      const r = await fetch(url);
+      if (!r.ok) { errors.push(`proxy${i}: HTTP${r.status}`); continue; }
+      return await r.json();
+    } catch (e) {
+      errors.push(`proxy${i}: ${e.message}`);
+    }
+  }
+  console.error('Overpass全ての経路が失敗:', errors);
+  throw new Error('OSMサーバーに接続できませんでした（Downloadsフォルダから開いた場合、ブラウザのセキュリティ制限で通信できないことがあります）');
+}
+
+/* ═════════ GEOCODE (with JSONP fallback) ═════════ */
+async function geocode(query) {
+  const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1&accept-language=ja&addressdetails=1`;
+  let data = null;
+  try {
+    const r = await fetch(url);
+    if (!r.ok) throw new Error('fetch-http-' + r.status);
+    data = await r.json();
+  } catch (fetchErr) {
+    console.log('Nominatim fetch失敗、JSONPにフォールバック:', fetchErr.message);
+    try {
+      data = await jsonp(url, 'json_callback');
+    } catch (jsonpErr) {
+      throw new Error('ジオコーディング失敗: ' + jsonpErr.message);
+    }
+  }
+  if (!data || !data.length) throw new Error(`「${query}」という都市は見つかりませんでした`);
+  const item = data[0];
+  const bboxRaw = item.boundingbox.map(parseFloat);
+  const lat = parseFloat(item.lat);
+  const lng = parseFloat(item.lon);
+  const cc  = (item.address?.country_code || '').toLowerCase();
+  let [s, n, w, e] = bboxRaw;
+  const latSpan = n - s;
+  const lngSpan = e - w;
+  const MAX = 0.35;
+  if (latSpan > MAX || lngSpan > MAX) {
+    s = lat - 0.15; n = lat + 0.15; w = lng - 0.2; e = lng + 0.2;
+  }
+  return {
+    lat, lng, bbox: [s, n, w, e], cc,
+    displayName: item.display_name,
+    city: item.address?.city || item.address?.town || item.address?.village || item.name || query,
+    country: item.address?.country,
+  };
+}
+
+/* ═════════ OVERPASS ═════════ */
+async function fetchRestaurants(bbox, cuisineRegex, onProgress) {
+  const [s, n, w, e] = bbox;
+  const box = `${s},${w},${n},${e}`;
+  const query = `[out:json][timeout:25];
+(
+  node["amenity"="restaurant"]["name"]["cuisine"~"${cuisineRegex}",i](${box});
+  way["amenity"="restaurant"]["name"]["cuisine"~"${cuisineRegex}",i](${box});
+  node["amenity"="restaurant"]["name"][!"cuisine"](${box});
+  way["amenity"="restaurant"]["name"][!"cuisine"](${box});
+);
+out center tags 120;`;
+
+  const data = await fetchOverpassData(query, onProgress);
+  return (data.elements || []).map(el => {
+    const t = el.tags || {};
+    return {
+      id: `${el.type}/${el.id}`,
+      type: el.type,
+      lat: el.lat ?? el.center?.lat,
+      lng: el.lon ?? el.center?.lon,
+      tags: t,
+      name: t.name || t['name:en'] || t['name:ja'] || '',
+      name_local: t.name,
+      cuisine: t.cuisine,
+      hasCuisine: !!t.cuisine,
+    };
+  }).filter(r => r.lat && r.lng && r.name);
+}
+
+/* ═════════ SCORE & FILTER ═════════ */
+/*  スコアは「レビューで上位に出る店」ほど高くなるように設計:
+    - OSMで丁寧にタグ付けされている店 = 現地で知名度が高い/店側がPRに熱心 = レビューが多い傾向
+    - ミシュラン星は決定的要因
+    - 日本語/英語表記の有無は見ない
+*/
+function scoreRestaurant(r) {
+  const t = r.tags;
+  let s = 0;
+  if (r.hasCuisine) s += 3;
+  if (t.website || t['contact:website']) s += 3;
+  if (t.phone || t['contact:phone']) s += 2;
+  if (t.opening_hours) s += 2;
+  if (t['addr:street']) s += 1.5;
+  if (t['addr:housenumber']) s += 1;
+  if (t.outdoor_seating) s += 0.5;
+  if (t.takeaway) s += 0.5;
+  if (t.reservation) s += 1;
+  if (t.brand) s += 1;
+  if (t.stars) s += (parseInt(t.stars) || 0) * 2;
+  if (t['michelin:stars']) s += 15;
+  if (t.wikipedia || t.wikidata) s += 5;
+  if (t.image) s += 1;
+  return s;
+}
+
+function pickTopRestaurants(list, max) {
+  const seen = new Set();
+  const unique = [];
+  for (const r of list) {
+    const key = r.name.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(r);
+  }
+  return unique.sort((a, b) => scoreRestaurant(b) - scoreRestaurant(a)).slice(0, max);
+}
+
+/* ═════════ RATING / SUMMARY / HIGHLIGHTS ═════════ */
+function scoreToStars(score) {
+  if (score >= 22) return 4.9;
+  if (score >= 17) return 4.7;
+  if (score >= 13) return 4.5;
+  if (score >= 10) return 4.3;
+  if (score >= 7)  return 4.1;
+  if (score >= 5)  return 3.9;
+  if (score >= 3)  return 3.7;
+  return 3.5;
+}
+
+function renderStars(rating) {
+  let html = '';
+  for (let i = 1; i <= 5; i++) {
+    if (rating >= i) html += '<span class="star on">★</span>';
+    else if (rating >= i - 0.5) html += '<span class="star half">★</span>';
+    else html += '<span class="star">★</span>';
+  }
+  return html;
+}
+
+/* ═════════ PRICE ESTIMATION ═════════ */
+function estimatePrice(r) {
+  const t = r.tags || {};
+  // 1(very cheap) ~ 4(very expensive)
+
+  // Direct price tags (rare but structured)
+  const pr = t['price:range'] || t['price_range'] || t.price;
+  if (pr) {
+    const v = String(pr).toLowerCase();
+    if (/very[_-]?expensive|\$\$\$\$|¥¥¥¥|€€€€/.test(v)) return 4;
+    if (/expensive|\$\$\$|¥¥¥|€€€/.test(v))   return 3.3;
+    if (/moderate|mid|\$\$|¥¥|€€/.test(v))    return 2.5;
+    if (/cheap|budget|\$|¥|€/.test(v))        return 1.7;
+    if (/very[_-]?cheap/.test(v))             return 1.2;
+  }
+
+  // Michelin stars => expensive
+  if (t['michelin:stars']) {
+    const stars = parseInt(t['michelin:stars']) || 1;
+    return Math.min(4, 3.2 + stars * 0.3);
+  }
+  if (t['michelin'] === 'bib_gourmand' || t['michelin_bib_gourmand'] === 'yes') return 2.3; // 本来コスパの象徴
+
+  // Fast food / drive-through => cheap
+  if (t['amenity'] === 'fast_food' || t.fast_food === 'yes' || t.drive_through === 'yes') return 1.5;
+
+  // Takeaway-only => casual/cheap
+  if (t.takeaway === 'only') return 1.7;
+
+  // Reservation required => fancier
+  if (t.reservation === 'required') return 3.3;
+
+  // Chain/brand => usually moderate-cheap
+  if (t.brand) return 2.2;
+
+  // Data richness as weak signal (established = moderate+)
+  const rich = (t.website || t['contact:website'] ? 1 : 0)
+             + (t.phone   || t['contact:phone']   ? 1 : 0)
+             + (t.opening_hours ? 1 : 0)
+             + (t['addr:street'] ? 1 : 0);
+  if (rich >= 4) return 2.8;
+  if (rich >= 3) return 2.5;
+  if (rich >= 2) return 2.3;
+
+  return 2.4; // default mid
+}
+
+function priceSymbol(tier) {
+  if (tier >= 3.6) return '￥￥￥￥';
+  if (tier >= 2.9) return '￥￥￥';
+  if (tier >= 2.0) return '￥￥';
+  return '￥';
+}
+
+function calcValueScore(r) {
+  // コスパ = 質 / 価格^1.2（安い方を強めに優遇）
+  if (r._score < 2) return 0; // データ欠落店は除外傾向
+  let v = r._score / Math.pow(r._price, 1.2);
+  // Bib Gourmand は強ボーナス
+  if (r.tags && (r.tags['michelin'] === 'bib_gourmand' || r.tags['michelin_bib_gourmand'] === 'yes')) v *= 1.8;
+  return v;
+}
+
+function buildHighlights(r) {
+  const t = r.tags || {};
+  const hl = [];
+  if (t['michelin:stars']) hl.push({ ic: '⭐', text: `ミシュラン${t['michelin:stars']}ツ星` });
+  if (t.stars && !t['michelin:stars']) hl.push({ ic: '⭐', text: `${t.stars}ツ星` });
+  if (t.wikipedia || t.wikidata) hl.push({ ic: '📖', text: 'ガイド掲載' });
+  if (t.outdoor_seating === 'yes') hl.push({ ic: '🌿', text: 'テラス席' });
+  if (t.takeaway === 'yes' || t.takeaway === 'only') hl.push({ ic: '🥡', text: 'テイクアウト可' });
+  if (t.delivery === 'yes') hl.push({ ic: '🛵', text: 'デリバリー' });
+  if (t.reservation === 'yes' || t.reservation === 'required') hl.push({ ic: '📅', text: '予約可' });
+  if (t.reservation === 'required') hl.push({ ic: '❗', text: '要予約' });
+  if (t['diet:vegetarian'] === 'yes') hl.push({ ic: '🥗', text: 'ベジ対応' });
+  if (t['diet:vegan'] === 'yes') hl.push({ ic: '🌱', text: 'ビーガン対応' });
+  if (t['diet:halal'] === 'yes') hl.push({ ic: '☪️', text: 'ハラール' });
+  if (t['diet:kosher'] === 'yes') hl.push({ ic: '✡️', text: 'コーシャー' });
+  if (t['diet:gluten_free'] === 'yes') hl.push({ ic: '🌾', text: 'グルテンフリー' });
+  if (t['payment:credit_cards'] === 'yes') hl.push({ ic: '💳', text: 'カード可' });
+  if (t.wheelchair === 'yes') hl.push({ ic: '♿', text: '車椅子対応' });
+  if (t.internet_access === 'yes' || t.internet_access === 'wlan' || t.wifi === 'yes') hl.push({ ic: '📶', text: 'Wi-Fi' });
+  if (t.smoking === 'no') hl.push({ ic: '🚭', text: '禁煙' });
+  if (t.air_conditioning === 'yes') hl.push({ ic: '❄️', text: '冷房完備' });
+  return hl;
+}
+
+function buildSummary(r, cuisineInfo, rating) {
+  const t = r.tags || {};
+  const cuisineJa = cuisineInfo.label;
+  const cuisineSpecific = r.cuisine ? r.cuisine.split(';')[0].replace(/_/g, ' ') : null;
+
+  // opening
+  let opener;
+  if (t['michelin:stars']) {
+    opener = `ミシュラン${t['michelin:stars']}ツ星に輝く${cuisineJa}の名店`;
+  } else if (t.wikipedia || t.wikidata) {
+    opener = `ガイドブックでも紹介される${cuisineJa}の有名店`;
+  } else if (rating >= 4.5) {
+    opener = `地元で高く評価される${cuisineJa}レストラン`;
+  } else if (rating >= 4.1) {
+    opener = `地域で親しまれる${cuisineJa}の一軒`;
+  } else if (r.hasCuisine) {
+    opener = `本格的な${cuisineJa}が味わえる店`;
+  } else {
+    opener = `この街で${cuisineJa}を楽しめるレストラン`;
+  }
+
+  // features sentence
+  const features = [];
+  if (t.outdoor_seating === 'yes') features.push('テラス席');
+  if (t.reservation === 'required') features.push('完全予約制');
+  else if (t.reservation === 'yes') features.push('予約可能');
+  if (t.takeaway === 'yes') features.push('テイクアウトにも対応');
+  if (t['diet:vegetarian'] === 'yes' || t['diet:vegan'] === 'yes') features.push('ベジタリアン対応');
+
+  // closing
+  let closing = '';
+  if (features.length > 0) {
+    closing = features.slice(0, 3).join('・') + 'で、幅広い利用シーンに応える。';
+  } else if (t.website || t['contact:website']) {
+    closing = '公式サイトから詳細情報が確認できる。';
+  } else if (t.opening_hours) {
+    closing = '営業時間が明示されており、訪問計画を立てやすい。';
+  } else {
+    closing = '';
+  }
+
+  // neighborhood mention
+  const area = t['addr:suburb'] || t['addr:district'] || t['addr:neighbourhood'];
+  const areaPart = area ? `${area}エリアに位置し、` : '';
+
+  return `${opener}。${areaPart}${closing}`.replace(/。$/, '。').trim();
+}
+
+/* ═════════ MAP LINKS ═════════ */
+function buildMapLink(service, r, city) {
+  const name = r.name_local || r.name;
+  const q = encodeURIComponent(`${name} ${city.city} ${city.country || ''}`.trim());
+  switch (service) {
+    case 'google':
+      return `https://www.google.com/maps/search/?api=1&query=${q}`;
+    case 'yandex':
+      return `https://yandex.com/maps/?text=${q}&ll=${r.lng}%2C${r.lat}&z=17`;
+    case 'amap':
+      return `https://uri.amap.com/search?keyword=${q}&src=gourmand`;
+    case 'baidu':
+      return `https://map.baidu.com/search/${encodeURIComponent(name)}`;
+    case 'naver':
+      return `https://map.naver.com/p/search/${q}`;
+    case 'osm':
+      return `https://www.openstreetmap.org/${r.id}`;
+    default:
+      return '#';
+  }
+}
+
+/* ═════════ SEARCH ═════════ */
+async function searchCity() {
+  const q = document.getElementById('cityInput').value.trim();
+  if (!q) return;
+  const btn = document.getElementById('searchBtn');
+  btn.disabled = true;
+
+  closePanel();
+  setStatus('loading', `<span class="spinner"></span>「${escapeHtml(q)}」を検索中...`);
+  document.getElementById('emptyState').style.display = 'none';
+  document.getElementById('cityInfoBtn').classList.add('hidden');
+  document.getElementById('sortTabs').classList.add('hidden');
+  clearMarkers();
+
+  try {
+    const city = await geocode(q);
+    currentCity = city;
+
+    const cuisineInfo = COUNTRY_CUISINE[city.cc] || { tags: 'regional', label: '地元料理' };
+    setStatus('loading', `<span class="spinner"></span>${flagEmoji(city.cc)} ${escapeHtml(city.city)}の${cuisineInfo.label}を探しています...`);
+
+    map.flyTo([city.lat, city.lng], 13, { duration: 0.9 });
+
+    const rawList = await fetchRestaurants(city.bbox, cuisineInfo.tags, (msg) => {
+      setStatus('loading', `<span class="spinner"></span>${msg}`);
+    });
+    if (rawList.length === 0) {
+      setStatus('error', `⚠️ ${city.city}で該当するレストランが見つかりませんでした`);
+      showCityInfoBtn(city, cuisineInfo, 0);
+      return;
+    }
+
+    const tagged   = rawList.filter(r => r.hasCuisine);
+    const untagged = rawList.filter(r => !r.hasCuisine);
+    const topTagged   = pickTopRestaurants(tagged, 12);
+    const remainSlot  = Math.max(3, 15 - topTagged.length);
+    const topUntagged = pickTopRestaurants(untagged, remainSlot);
+    const finalList   = pickTopRestaurants([...topTagged, ...topUntagged], 15);
+
+    // attach computed rating / price / value
+    finalList.forEach(r => {
+      r._score = scoreRestaurant(r);
+      r._rating = scoreToStars(r._score);
+      r._price = estimatePrice(r);
+      r._priceSymbol = priceSymbol(r._price);
+      r._value = calcValueScore(r);
+    });
+
+    // Save state for re-sort
+    state.list = finalList;
+    state.city = city;
+    state.cuisineInfo = cuisineInfo;
+    state.sort = 'quality';
+    document.querySelectorAll('.sort-tab').forEach(b => b.classList.toggle('active', b.dataset.sort === 'quality'));
+    document.getElementById('sortTabs').classList.remove('hidden');
+
+    renderRestaurants(getSortedList(), city, cuisineInfo);
+    setStatus('ok', `${flagEmoji(city.cc)} ${escapeHtml(city.city)}の${cuisineInfo.label} ${finalList.length}件を表示中`);
+    showCityInfoBtn(city, cuisineInfo, finalList.length);
+
+  } catch (e) {
+    console.error(e);
+    const isContentOrigin = location.protocol === 'content:' || location.href.startsWith('content:');
+    let msg = e.message || '検索中にエラーが発生しました';
+    if (isContentOrigin && /fetch|Failed|タイムアウト|接続/.test(msg)) {
+      msg = '⚠️ Downloadsフォルダ直接開きでは通信が制限されることがあります。下の案内をご確認ください。';
+    }
+    setStatus('error', msg);
+    document.getElementById('emptyState').style.display = 'block';
+    if (isContentOrigin) {
+      document.getElementById('emptyState').innerHTML = `
+        <div class="empty-icon">⚠️</div>
+        <div class="empty-title">通信がブロックされています</div>
+        <div class="empty-text" style="text-align:left;">
+          Chromeの <code style="color:var(--acc);">content://</code> 経由で開かれているため、<br>
+          外部サーバーへの通信が制限されます。<br><br>
+          <strong style="color:var(--acc);">解決方法:</strong><br>
+          ① ファイルアプリでHTMLを長押し →「共有」→「Chromeで開く」<br>
+          ② またはPCのブラウザで開く<br>
+          ③ またはローカルサーバーで開く
+        </div>`;
+    }
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function showCityInfoBtn(city, cuisineInfo, count) {
+  const btn = document.getElementById('cityInfoBtn');
+  btn.innerHTML = `<span class="flag">${flagEmoji(city.cc)}</span><span>${escapeHtml(city.city)}</span>`;
+  btn.classList.remove('hidden');
+  btn.title = `${city.country || ''} / ${cuisineInfo.label} / ${count}件`;
+  btn.onclick = () => map.flyTo([city.lat, city.lng], 13, { duration: 0.8 });
+}
+
+/* ═════════ RENDER ═════════ */
+function renderRestaurants(list, city, cuisineInfo) {
+  clearMarkers();
+  const bounds = [];
+  const strip = document.getElementById('chipStrip');
+  strip.innerHTML = '';
+  strip.classList.remove('hidden');
+
+  list.forEach((r, i) => {
+    bounds.push([r.lat, r.lng]);
+
+    const el = document.createElement('div');
+    el.className = 'marker-wrap';
+    el.innerHTML = `
+      <div class="marker-pulse"></div>
+      <div class="marker-pin"><div class="marker-inner">🍽</div></div>
+      <div class="marker-rank">${i + 1}</div>
+    `;
+    const icon = L.divIcon({ html: el, iconSize: [40, 40], iconAnchor: [20, 40], className: '' });
+    const marker = L.marker([r.lat, r.lng], { icon }).addTo(map);
+    marker.on('click', (e) => {
+      L.DomEvent.stopPropagation(e);
+      openPanel(i, r, city, cuisineInfo);
+    });
+    markers.push({ marker, el });
+
+    const chip = document.createElement('div');
+    chip.className = 'chip';
+    const cuisineText = (r.cuisine || cuisineInfo.label).split(';')[0].replace(/_/g, ' ');
+    // コスパ順で上位かつ価格が安めならハイライト
+    const isGoodValue = state.sort === 'value' && r._price <= 2.3 && r._rating >= 3.9;
+    chip.innerHTML = `
+      <span class="chip-rank">#${(i + 1).toString().padStart(2, '0')}</span>
+      <div class="chip-name">${escapeHtml(r.name)}</div>
+      <div class="chip-meta">
+        <span class="chip-rating">★ ${r._rating.toFixed(1)}</span>
+        <span class="chip-price${isGoodValue ? ' good-value' : ''}">${r._priceSymbol}</span>
+      </div>
+      <div class="chip-meta" style="margin-top:2px;">
+        <span class="chip-cuisine">${escapeHtml(cuisineText)}</span>
+      </div>
+    `;
+    chip.onclick = () => {
+      map.flyTo([r.lat, r.lng], 16, { duration: 0.7 });
+      openPanel(i, r, city, cuisineInfo);
+    };
+    strip.appendChild(chip);
+    chips.push(chip);
+  });
+
+  if (bounds.length > 0) {
+    map.flyToBounds(bounds, { padding: [60, 60], duration: 1.1, maxZoom: 15 });
+  }
+}
+
+function openPanel(idx, r, city, cuisineInfo) {
+  if (activeIdx !== null && markers[activeIdx]) {
+    markers[activeIdx].el.classList.remove('active');
+    chips[activeIdx]?.classList.remove('active');
+  }
+  activeIdx = idx;
+  markers[idx].el.classList.add('active');
+  chips[idx]?.classList.add('active');
+  chips[idx]?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+
+  const inner = document.getElementById('panelInner');
+  inner.innerHTML = buildPanelHTML(idx, r, city, cuisineInfo);
+  inner.scrollTop = 0;
+  document.getElementById('panel').classList.add('open');
+}
+
+function closePanel() {
+  document.getElementById('panel').classList.remove('open');
+  if (activeIdx !== null && markers[activeIdx]) {
+    markers[activeIdx].el.classList.remove('active');
+    chips[activeIdx]?.classList.remove('active');
+  }
+  activeIdx = null;
+}
+
+function buildPanelHTML(idx, r, city, cuisineInfo) {
+  const t = r.tags || {};
+  const googleUrl = buildMapLink('google', r, city);
+  const services = mapServicesFor(city.cc);
+
+  const tagChips = [];
+  if (r.cuisine) {
+    r.cuisine.split(';').slice(0, 3).forEach(c => tagChips.push(c.trim().replace(/_/g, ' ')));
+  } else {
+    tagChips.push(cuisineInfo.label + '（推定）');
+  }
+  if (t['addr:suburb'] || t['addr:district'] || t['addr:neighbourhood']) {
+    tagChips.push(t['addr:suburb'] || t['addr:district'] || t['addr:neighbourhood']);
+  }
+  tagChips.push(r._priceSymbol);
+  if (t['michelin:stars']) tagChips.push(`⭐ ミシュラン${t['michelin:stars']}ツ星`);
+  if (t['michelin'] === 'bib_gourmand' || t['michelin_bib_gourmand'] === 'yes') tagChips.push('💎 ビブグルマン');
+
+  const infoRows = [];
+  const addr = formatAddress(t);
+  if (addr) infoRows.push({ k: '📍', v: escapeHtml(addr) });
+  if (t.opening_hours) infoRows.push({ k: '🕒', v: escapeHtml(t.opening_hours) });
+  const phone = t.phone || t['contact:phone'];
+  if (phone) infoRows.push({ k: '📞', v: `<a href="tel:${escapeHtml(phone)}">${escapeHtml(phone)}</a>` });
+  const website = t.website || t['contact:website'];
+  if (website) {
+    const url = cleanUrl(website);
+    infoRows.push({ k: '🌐', v: `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(website)}</a>` });
+  }
+  if (t['name:ja'] && t['name:ja'] !== t.name) infoRows.push({ k: '🏷', v: `日本語表記: ${escapeHtml(t['name:ja'])}` });
+  if (t['name:en'] && t['name:en'] !== t.name) infoRows.push({ k: '🔤', v: `英語表記: ${escapeHtml(t['name:en'])}` });
+  if (t.brand) infoRows.push({ k: '🏢', v: escapeHtml(t.brand) });
+
+  const svcButtons = services.map((s, i) => {
+    const info = SERVICE_INFO[s];
+    const url = buildMapLink(s, r, city);
+    const primary = i === 0 ? 'primary' : '';
+    return `
+      <a class="map-link ${primary} ${info.className}" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">
+        <div class="map-link-icon">${info.short}</div>
+        <div class="map-link-body">
+          <div class="map-link-name">${info.name}${i === 0 ? ' <span style="opacity:0.7;font-size:0.85em;">（推奨）</span>' : ''}</div>
+          <div class="map-link-desc">${info.desc}</div>
+        </div>
+        <div class="map-link-arrow">↗</div>
+      </a>`;
+  }).join('');
+
+  const highlights = buildHighlights(r);
+
+  let noteLines = ['<strong>Gourmand Score</strong>はOSMデータの充実度に基づく独自評価です。実際のユーザー評価は下のマップサービスでご確認ください。'];
+  if (city.cc === 'cn') noteLines.push('中国大陸のレビューは<strong>高德地図</strong>・<strong>百度地図</strong>の方が詳細です（Google MapsはVPN必須）。');
+  if (city.cc === 'kr') noteLines.push('韓国では<strong>NAVER地図</strong>が現地の詳細レビュー・写真が最も充実しています。');
+  if (['ru','by','kz','kg','tj','tm','uz','az','am','md','ge'].includes(city.cc)) noteLines.push('旧ソ連圏では<strong>Yandex Карты</strong>の方が現地の詳細情報・レビューが充実しています。');
+
+  const note = `<div class="note-card">${noteLines.join('<br>')}</div>`;
+
+  return `
+    <div class="panel-rank">No. ${(idx + 1).toString().padStart(2, '0')}</div>
+    <a class="panel-name" href="${escapeHtml(googleUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(r.name)}<span class="panel-name-arrow">↗</span></a>
+    <div class="panel-tags">
+      ${tagChips.map(c => `<span>${escapeHtml(c)}</span>`).join('')}
+    </div>
+
+    <div class="rating-block">
+      <div class="rating-main">
+        <div class="stars">${renderStars(r._rating)}</div>
+        <span class="rating-num">${r._rating.toFixed(1)}</span>
+      </div>
+      <div class="rating-label">
+        Gourmand<br>Score
+        <div style="margin-top:4px;font-size:0.95em;color:var(--acc-2);letter-spacing:0.08em;">
+          ${r._priceSymbol} ${r._value >= 6 ? '<span style="color:#34d399;">✦高コスパ</span>' : ''}
+        </div>
+      </div>
+    </div>
+
+    <div class="section-title">レビュー概要</div>
+    <div class="summary-text">${escapeHtml(buildSummary(r, cuisineInfo, r._rating))}</div>
+
+    ${highlights.length ? `
+      <div class="highlights">
+        ${highlights.map(h => `<div class="hl-item"><span class="hl-ic">${h.ic}</span>${escapeHtml(h.text)}</div>`).join('')}
+      </div>
+    ` : ''}
+
+    ${infoRows.length ? `
+      <div class="section-title">店舗情報</div>
+      <div class="panel-info">
+        ${infoRows.map(row => `
+          <div class="info-row">
+            <div class="info-key">${row.k}</div>
+            <div class="info-val">${row.v}</div>
+          </div>
+        `).join('')}
+      </div>
+    ` : ''}
+
+    <div class="section-title">マップ & 実際のレビュー</div>
+    <div class="map-links">${svcButtons}</div>
+    ${note}
+  `;
+}
+
+function clearMarkers() {
+  markers.forEach(({ marker }) => map.removeLayer(marker));
+  markers = []; chips = []; activeIdx = null;
+  document.getElementById('chipStrip').classList.add('hidden');
+  document.getElementById('chipStrip').innerHTML = '';
+}
+
+document.getElementById('cityInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') searchCity();
+});
+</script>
+
+</body>
+</html>

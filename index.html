@@ -358,13 +358,19 @@ header {
   color: var(--acc-2); font-weight: 500;
   letter-spacing: 0.02em;
 }
-.chip-price.good-value { color: #34d399; }
+.chip.tier-low  .chip-price { color: #34d399; }
+.chip.tier-mid  .chip-price { color: #c4b5fd; }
+.chip.tier-high .chip-price { color: var(--gold); }
 
-/* sort tabs */
+/* tier-colored borders/glow on chip */
+.chip.tier-low  { border-color: rgba(52,211,153,0.25); }
+.chip.tier-high { border-color: rgba(251,191,36,0.25); }
+
+/* sort/filter tabs */
 .sort-tabs {
   position: absolute; left: 50%; transform: translateX(-50%);
-  bottom: 82px; z-index: 6;
-  display: flex; gap: 3px;
+  bottom: 88px; z-index: 6;
+  display: flex; gap: 2px;
   background: rgba(18,10,50,0.78);
   backdrop-filter: blur(22px) saturate(170%);
   -webkit-backdrop-filter: blur(22px) saturate(170%);
@@ -373,17 +379,21 @@ header {
   padding: 3px;
   box-shadow: 0 6px 20px rgba(0,0,0,0.45), inset 0 1px 0 var(--glass-hi);
   transition: opacity .3s, transform .3s;
+  max-width: calc(100% - 24px);
+  overflow-x: auto;
+  scrollbar-width: none;
 }
+.sort-tabs::-webkit-scrollbar { display: none; }
 .sort-tabs.hidden { opacity: 0; transform: translateX(-50%) translateY(10px); pointer-events: none; }
 .sort-tab {
   background: transparent; border: none;
   color: var(--muted);
   font-family: 'Oxanium', sans-serif; font-weight: 500;
-  font-size: 0.72rem; letter-spacing: 0.06em;
-  padding: 6px 14px; border-radius: 999px;
-  cursor: pointer;
+  font-size: 0.7rem; letter-spacing: 0.04em;
+  padding: 6px 11px; border-radius: 999px;
+  cursor: pointer; white-space: nowrap;
   transition: color .2s, background .2s;
-  display: flex; align-items: center; gap: 4px;
+  display: flex; align-items: center; gap: 5px;
 }
 .sort-tab:hover { color: var(--text); }
 .sort-tab.active {
@@ -391,7 +401,19 @@ header {
   color: #fff;
   box-shadow: 0 2px 10px var(--glow);
 }
-.sort-tab .sort-ic { font-size: 0.9em; }
+.sort-tab .sort-ic { font-size: 0.95em; }
+.sort-tab .sort-count {
+  font-size: 0.7em; opacity: 0.65;
+  background: rgba(255,255,255,0.1);
+  padding: 1px 6px; border-radius: 999px;
+  min-width: 16px; text-align: center;
+  font-weight: 400;
+}
+.sort-tab.active .sort-count { background: rgba(255,255,255,0.25); opacity: 1; }
+@media (max-width: 480px) {
+  .sort-tab { padding: 6px 9px; font-size: 0.66rem; }
+  .sort-tab .sort-count { font-size: 0.65em; padding: 1px 5px; }
+}
 
 /* panel */
 .panel-overlay {
@@ -699,11 +721,17 @@ header {
 <div id="map">
   <button class="city-info-btn hidden" id="cityInfoBtn"></button>
   <div class="sort-tabs hidden" id="sortTabs">
-    <button class="sort-tab active" data-sort="quality" onclick="applySort('quality')">
-      <span class="sort-ic">⭐</span>おすすめ順
+    <button class="sort-tab active" data-filter="all" onclick="applyFilter('all')">
+      <span class="sort-ic">📋</span>全て<span class="sort-count">0</span>
     </button>
-    <button class="sort-tab" data-sort="value" onclick="applySort('value')">
-      <span class="sort-ic">💎</span>コスパ順
+    <button class="sort-tab" data-filter="low" onclick="applyFilter('low')">
+      <span class="sort-ic">💎</span>コスパ<span class="sort-count">0</span>
+    </button>
+    <button class="sort-tab" data-filter="mid" onclick="applyFilter('mid')">
+      <span class="sort-ic">🍽</span>標準<span class="sort-count">0</span>
+    </button>
+    <button class="sort-tab" data-filter="high" onclick="applyFilter('high')">
+      <span class="sort-ic">👑</span>高級<span class="sort-count">0</span>
     </button>
   </div>
   <div class="empty-state" id="emptyState">
@@ -868,22 +896,40 @@ L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { 
 L.control.zoom({ position: 'bottomright' }).addTo(map);
 
 let markers = [], chips = [], activeIdx = null, currentCity = null;
-const state = { list: [], city: null, cuisineInfo: null, sort: 'quality' };
+const state = { list: [], city: null, cuisineInfo: null, filter: 'all' };
 
-function getSortedList() {
-  const copy = [...state.list];
-  if (state.sort === 'value') {
-    return copy.sort((a, b) => b._value - a._value);
-  }
-  return copy.sort((a, b) => b._score - a._score);
+function countTier(tier) {
+  return state.list.filter(r => r._tier === tier).length;
 }
 
-function applySort(sort) {
+function getFilteredList() {
+  let arr;
+  if (state.filter === 'all') {
+    arr = [...state.list];
+  } else {
+    arr = state.list.filter(r => r._tier === state.filter);
+  }
+  return arr.sort((a, b) => b._score - a._score);
+}
+
+function applyFilter(filter) {
   if (!state.list.length) return;
-  state.sort = sort;
-  document.querySelectorAll('.sort-tab').forEach(b => b.classList.toggle('active', b.dataset.sort === sort));
+  state.filter = filter;
+  updateFilterTabs();
   closePanel();
-  renderRestaurants(getSortedList(), state.city, state.cuisineInfo);
+  renderRestaurants(getFilteredList(), state.city, state.cuisineInfo);
+}
+
+function updateFilterTabs() {
+  document.querySelectorAll('.sort-tab').forEach(b => {
+    b.classList.toggle('active', b.dataset.filter === state.filter);
+    const tier = b.dataset.filter;
+    const cntEl = b.querySelector('.sort-count');
+    if (cntEl) {
+      const n = (tier === 'all') ? state.list.length : countTier(tier);
+      cntEl.textContent = n;
+    }
+  });
 }
 
 map.on('click',    () => closePanel());
@@ -1145,68 +1191,95 @@ function renderStars(rating) {
   return html;
 }
 
-/* ═════════ PRICE ESTIMATION ═════════ */
-function estimatePrice(r) {
+/* ═════════ PRICE SIGNAL & TIER BUCKETING ═════════ */
+// 各店の「価格シグナル」を連続値で算出 → 順位で 5/10/5 に振り分ける
+function estimatePriceSignal(r) {
   const t = r.tags || {};
-  // 1(very cheap) ~ 4(very expensive)
+  let s = 0;
 
-  // Direct price tags (rare but structured)
-  const pr = t['price:range'] || t['price_range'] || t.price;
-  if (pr) {
-    const v = String(pr).toLowerCase();
-    if (/very[_-]?expensive|\$\$\$\$|¥¥¥¥|€€€€/.test(v)) return 4;
-    if (/expensive|\$\$\$|¥¥¥|€€€/.test(v))   return 3.3;
-    if (/moderate|mid|\$\$|¥¥|€€/.test(v))    return 2.5;
-    if (/cheap|budget|\$|¥|€/.test(v))        return 1.7;
-    if (/very[_-]?cheap/.test(v))             return 1.2;
-  }
-
-  // Michelin stars => expensive
+  // ── 強い指標 ──
   if (t['michelin:stars']) {
     const stars = parseInt(t['michelin:stars']) || 1;
-    return Math.min(4, 3.2 + stars * 0.3);
+    s += 60 + stars * 25; // 1ツ星=85, 2ツ星=110, 3ツ星=135
   }
-  if (t['michelin'] === 'bib_gourmand' || t['michelin_bib_gourmand'] === 'yes') return 2.3; // 本来コスパの象徴
+  if (t.michelin === 'bib_gourmand' || t.michelin_bib_gourmand === 'yes') s -= 18;
+  if (t.reservation === 'required') s += 35;
+  else if (t.reservation === 'yes') s += 8;
+  if (t.amenity === 'fast_food' || t.fast_food === 'yes') s -= 35;
+  if (t.takeaway === 'only') s -= 25;
+  if (t.drive_through === 'yes') s -= 30;
+  if (t.dress_code === 'formal' || t.dress_code === 'smart') s += 30;
 
-  // Fast food / drive-through => cheap
-  if (t['amenity'] === 'fast_food' || t.fast_food === 'yes' || t.drive_through === 'yes') return 1.5;
+  // ── 中程度指標 ──
+  if (t.outdoor_seating === 'yes') s += 4;
+  if (t.air_conditioning === 'yes') s += 6;
+  if (t.wikipedia || t.wikidata) s += 12;       // ガイド掲載 = 上位寄り
+  if (t.stars && !t['michelin:stars']) s += (parseInt(t.stars) || 0) * 8;
 
-  // Takeaway-only => casual/cheap
-  if (t.takeaway === 'only') return 1.7;
+  // ── 情報充実度（広めに散らす）──
+  if (t.website || t['contact:website']) s += 5;
+  if (t.phone   || t['contact:phone'])   s += 3;
+  if (t.opening_hours)  s += 2;
+  if (t['addr:street']) s += 4;
+  if (t['addr:housenumber']) s += 3;
+  if (t['payment:credit_cards'] === 'yes') s += 4;
 
-  // Reservation required => fancier
-  if (t.reservation === 'required') return 3.3;
+  // ── ブランド/チェーン → 安価寄り ──
+  if (t.brand) s -= 10;
 
-  // Chain/brand => usually moderate-cheap
-  if (t.brand) return 2.2;
+  // ── ストリート系料理 → 安価・ローカル感 ──
+  const localCheap = /street_food|noodle|dumpling|kebab|taco|pizza|sandwich|burger|deli|bakery|bbq|barbecue|grill|food_court|hawker/i;
+  if (r.cuisine && localCheap.test(r.cuisine)) s -= 15;
 
-  // Data richness as weak signal (established = moderate+)
-  const rich = (t.website || t['contact:website'] ? 1 : 0)
-             + (t.phone   || t['contact:phone']   ? 1 : 0)
-             + (t.opening_hours ? 1 : 0)
-             + (t['addr:street'] ? 1 : 0);
-  if (rich >= 4) return 2.8;
-  if (rich >= 3) return 2.5;
-  if (rich >= 2) return 2.3;
+  // ── 同点ばらしの決定論的ハッシュ ──
+  const hash = (r.id || '').split('').reduce((a, c) => a + c.charCodeAt(0), 0);
+  s += (hash % 11) - 5;
 
-  return 2.4; // default mid
+  return s;
 }
 
-function priceSymbol(tier) {
-  if (tier >= 3.6) return '￥￥￥￥';
-  if (tier >= 2.9) return '￥￥￥';
-  if (tier >= 2.0) return '￥￥';
-  return '￥';
+// 20件を価格シグナル降順で並べ、上位5=高級 / 中央10=標準 / 下位5=コスパ に分類
+function bucketize(list) {
+  if (!list.length) return list;
+  const sorted = [...list].sort((a, b) => b._priceSignal - a._priceSignal);
+  const total = sorted.length;
+
+  let high, low, mid;
+  if (total >= 20) {
+    high = 5; low = 5; mid = total - 10;
+  } else {
+    // 件数不足時は比率配分(25/50/25)
+    high = Math.max(1, Math.round(total * 0.25));
+    low  = Math.max(1, Math.round(total * 0.25));
+    mid  = Math.max(0, total - high - low);
+  }
+
+  sorted.forEach((r, i) => {
+    if (i < high) {
+      r._tier = 'high';
+      // 高級内でも上位は￥￥￥￥、下位は￥￥￥
+      r._priceSymbol = (i < Math.ceil(high / 2)) ? '￥￥￥￥' : '￥￥￥';
+    } else if (i < high + mid) {
+      r._tier = 'mid';
+      const midIdx = i - high;
+      r._priceSymbol = (midIdx < Math.ceil(mid / 2)) ? '￥￥￥' : '￥￥';
+    } else {
+      r._tier = 'low';
+      r._priceSymbol = '￥';
+    }
+  });
+  return list;
 }
 
-function calcValueScore(r) {
-  // コスパ = 質 / 価格^1.2（安い方を強めに優遇）
-  if (r._score < 2) return 0; // データ欠落店は除外傾向
-  let v = r._score / Math.pow(r._price, 1.2);
-  // Bib Gourmand は強ボーナス
-  if (r.tags && (r.tags['michelin'] === 'bib_gourmand' || r.tags['michelin_bib_gourmand'] === 'yes')) v *= 1.8;
-  return v;
-}
+const TIER_INFO = {
+  all:  { ic: '📋', label: '全て',     class: '' },
+  low:  { ic: '💎', label: 'コスパ',    class: 'tier-low',
+          desc: '安価でローカル感のある店' },
+  mid:  { ic: '🍽', label: '標準',     class: 'tier-mid',
+          desc: '日常使いの中価格帯' },
+  high: { ic: '👑', label: '高級',     class: 'tier-high',
+          desc: '特別な日の上質な一軒' },
+};
 
 function buildHighlights(r) {
   const t = r.tags || {};
@@ -1336,30 +1409,31 @@ async function searchCity() {
 
     const tagged   = rawList.filter(r => r.hasCuisine);
     const untagged = rawList.filter(r => !r.hasCuisine);
-    const topTagged   = pickTopRestaurants(tagged, 12);
-    const remainSlot  = Math.max(3, 15 - topTagged.length);
+    const topTagged   = pickTopRestaurants(tagged, 16);
+    const remainSlot  = Math.max(4, 20 - topTagged.length);
     const topUntagged = pickTopRestaurants(untagged, remainSlot);
-    const finalList   = pickTopRestaurants([...topTagged, ...topUntagged], 15);
+    const finalList   = pickTopRestaurants([...topTagged, ...topUntagged], 20);
 
-    // attach computed rating / price / value
+    // attach computed metrics
     finalList.forEach(r => {
       r._score = scoreRestaurant(r);
       r._rating = scoreToStars(r._score);
-      r._price = estimatePrice(r);
-      r._priceSymbol = priceSymbol(r._price);
-      r._value = calcValueScore(r);
+      r._priceSignal = estimatePriceSignal(r);
     });
+    bucketize(finalList);
 
-    // Save state for re-sort
+    // Save state
     state.list = finalList;
     state.city = city;
     state.cuisineInfo = cuisineInfo;
-    state.sort = 'quality';
-    document.querySelectorAll('.sort-tab').forEach(b => b.classList.toggle('active', b.dataset.sort === 'quality'));
+    state.filter = 'all';
+
+    // Update tab counts & active state
+    updateFilterTabs();
     document.getElementById('sortTabs').classList.remove('hidden');
 
-    renderRestaurants(getSortedList(), city, cuisineInfo);
-    setStatus('ok', `${flagEmoji(city.cc)} ${escapeHtml(city.city)}の${cuisineInfo.label} ${finalList.length}件を表示中`);
+    renderRestaurants(getFilteredList(), city, cuisineInfo);
+    setStatus('ok', `${flagEmoji(city.cc)} ${escapeHtml(city.city)}の${cuisineInfo.label} ${finalList.length}件 (💎${countTier('low')} / 🍽${countTier('mid')} / 👑${countTier('high')})`);
     showCityInfoBtn(city, cuisineInfo, finalList.length);
 
   } catch (e) {
@@ -1424,16 +1498,15 @@ function renderRestaurants(list, city, cuisineInfo) {
     markers.push({ marker, el });
 
     const chip = document.createElement('div');
-    chip.className = 'chip';
+    chip.className = 'chip ' + (TIER_INFO[r._tier]?.class || '');
     const cuisineText = (r.cuisine || cuisineInfo.label).split(';')[0].replace(/_/g, ' ');
-    // コスパ順で上位かつ価格が安めならハイライト
-    const isGoodValue = state.sort === 'value' && r._price <= 2.3 && r._rating >= 3.9;
+    const tierIc = TIER_INFO[r._tier]?.ic || '';
     chip.innerHTML = `
       <span class="chip-rank">#${(i + 1).toString().padStart(2, '0')}</span>
       <div class="chip-name">${escapeHtml(r.name)}</div>
       <div class="chip-meta">
         <span class="chip-rating">★ ${r._rating.toFixed(1)}</span>
-        <span class="chip-price${isGoodValue ? ' good-value' : ''}">${r._priceSymbol}</span>
+        <span class="chip-price">${tierIc} ${r._priceSymbol}</span>
       </div>
       <div class="chip-meta" style="margin-top:2px;">
         <span class="chip-cuisine">${escapeHtml(cuisineText)}</span>
@@ -1549,7 +1622,7 @@ function buildPanelHTML(idx, r, city, cuisineInfo) {
       <div class="rating-label">
         Gourmand<br>Score
         <div style="margin-top:4px;font-size:0.95em;color:var(--acc-2);letter-spacing:0.08em;">
-          ${r._priceSymbol} ${r._value >= 6 ? '<span style="color:#34d399;">✦高コスパ</span>' : ''}
+          ${TIER_INFO[r._tier]?.ic || ''} ${r._priceSymbol}
         </div>
       </div>
     </div>
